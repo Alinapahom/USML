@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <cstdlib>
 
 uint16_t readHeader(char *, size_t);
 
@@ -71,7 +72,23 @@ int main(int argc, const char **argv)
     file.close();
     uint16_t parametrCount = readHeader(fileBuffer, fileSize);
 
-    char *startTableParametrs = &fileBuffer[32]; // Начало таблицы паспортов
+    char *startTableParametrs = &fileBuffer[32];                      // Начало таблицы паспортов
+    char *startParametrData = &fileBuffer[32 + (58 * parametrCount)]; // Начало информационного пакета
+
+    // Извлечение каждого параметра
+    while (parametrCount)
+    {
+        std::string fileParametrName = GetParametrName(startTableParametrs);
+        std::ofstream fileParametr;
+
+        fileParametr.open(fileParametrName);
+
+        if (fileParametr.is_open() == false)
+        {
+            std::cerr << "Can't open file " << fileParametrName << std::endl;
+            return -1;
+        }
+    }
 
     delete[] fileBuffer;
 
@@ -98,7 +115,13 @@ std::string &GetParametrName(char *buffer)
     return outputName;
 }
 
-void GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties, char *buffer)
+USMLPasportTable GetParametrPasport(char *buffer)
+{
+    USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
+    return *usmlpasportable;
+}
+
+size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties, char *buffer)
 {
     if (parametrFile.is_open() == false)
     {
@@ -106,42 +129,57 @@ void GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPrope
         return;
     }
 
-    int data = 0;
+    size_t dataParametrSize = 0;
+
+    std::stringstream dataStream;
 
     switch (parametrPropeties.format)
     {
     case dataChar:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            data = buffer[i];
+            dataStream << buffer[i];
+            parametrFile << dataStream.str() << "\n\r";
+            ++dataParametrSize;
         }
         break;
 
     case dataShort:
-            for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
-        {
-            data = buffer[i];
+        for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
+        { 
+            dataStream << ((short *)buffer)[i]; // Конвертация байтового массива в 16-битный
+            parametrFile << dataStream.str() << "\n\r";
+            dataParametrSize += 2;
         }
         break;
     case dataLong:
-            for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
+        for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            data = buffer[i];
+            dataStream << ((long *)buffer)[i];
+            parametrFile << dataStream.str() << "\n\r";
+            dataParametrSize += 4;
         }
         break;
     case dataFloat:
-            for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
+        for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            data = buffer[i];
+            dataStream.precision(4);
+            dataStream << ((float *)buffer)[i];
+            parametrFile << dataStream.str() << "\n\r";
+            dataParametrSize += 4;
         }
         break;
     case dataDouble:
-            for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
+        for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            data = buffer[i];
+            dataStream.precision(4);
+            dataStream << ((double *)buffer)[i];
+            parametrFile << dataStream.str() << "\n\r";
+            dataParametrSize += 8;
         }
         break;
     default:
         break;
     };
+    return dataParametrSize + 2;
 }
