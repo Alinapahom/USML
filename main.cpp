@@ -3,8 +3,6 @@
 #include <sstream>
 #include <cstdlib>
 
-uint16_t readHeader(char *, size_t);
-
 struct USMLHeader
 {
     uint32_t marker;
@@ -40,6 +38,11 @@ enum USMLFormatData
     dataDouble = 8
 };
 
+uint16_t readHeader(char *, size_t);
+std::string GetParametrName(char *buffer);
+USMLPasportTable GetParametrPasport(char *buffer);
+size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties, char *buffer);
+
 int main(int argc, const char **argv)
 {
 
@@ -60,17 +63,15 @@ int main(int argc, const char **argv)
     size_t fileSize = file.tellg();
     file.seekg(0);
 
-    if (fileSize < UINT32_MAX)
+    if (fileSize > INT32_MAX)
     {
-        std::cerr << "Invalid file size " << fileSize << " B"
-                  << "Maxsumum size is 4gb" << std::endl;
+        std::cerr << "Invalid file size " << fileSize
+                  << "Maxsumum size is 2gb" << std::endl;
         return -1;
     }
 
     // Создание буфера
     char *fileBuffer = new char[fileSize];
-
-    const int fileMarker = 2341245331;
 
     file.read(fileBuffer, fileSize);
     file.close();
@@ -81,28 +82,29 @@ int main(int argc, const char **argv)
     char *startParametrData = &fileBuffer[32 + (58 * parametrCount)]; // Начало информационного пакета
 
     // Извлечение каждого параметра
-    while (parametrCount)
+    while (parametrCount--)
     {
-        std::string fileParametrName = GetParametrName(startTableParametrs);
+        std::stringstream fileParametrName;
 
-        if (fileParametrName.empty())
-            continue;
-
-        fileParametrName.append(".txt");
+        fileParametrName << parametrCount << ".txt";
+        // = GetParametrName(startTableParametrs); 
 
         std::fstream fileParametr;
 
-        fileParametr.open(fileParametrName, std::ios::out);
+        fileParametr.open(fileParametrName.str(), std::ios::out | std::ios::trunc);
 
         if (fileParametr.is_open() == false)
         {
-            std::cerr << "Can't open file " << fileParametrName << std::endl;
+            std::cerr << "Can't open file " << fileParametrName.str() << std::endl;
             return -1;
         }
 
         auto Pasport = GetParametrPasport(startTableParametrs); // Извлечение таблицы
 
         auto dataSize = GetParametrData(fileParametr, Pasport, startParametrData); // Получение информации и размер, запись файла
+        
+        if (dataSize == 0)
+            continue;
 
         startTableParametrs += sizeof(USMLPasportTable);
         startParametrData += dataSize;
@@ -118,7 +120,7 @@ int main(int argc, const char **argv)
 // Чтение заголовка
 uint16_t readHeader(char *buffer, size_t size)
 {
-    const int fileMarker = 2341245331;
+    const uint32_t fileMarker = 2341245331;
 
     USMLHeader *usmlheader = (USMLHeader *)buffer; // Преобразование типа
     if (usmlheader->marker != fileMarker)
@@ -130,7 +132,7 @@ uint16_t readHeader(char *buffer, size_t size)
 }
 
 // Получение имя параметра
-std::string &GetParametrName(char *buffer)
+std::string GetParametrName(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
     std::string outputName = usmlpasportable->nameParametrs;
@@ -150,7 +152,7 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
     if (parametrFile.is_open() == false)
     {
         std::cerr << "Error create file" << std::endl;
-        return;
+        return 0;
     }
 
     size_t dataParametrSize = 0;
@@ -163,7 +165,9 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
             dataStream << buffer[i];
-            parametrFile << dataStream.str() << "\n\r";
+            parametrFile << dataStream.str() << std::endl;
+            dataStream.str("");
+            dataStream.clear();
             ++dataParametrSize;
         }
         break;
@@ -172,7 +176,9 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
             dataStream << ((short *)buffer)[i]; // Конвертация байтового массива в 16-битный
-            parametrFile << dataStream.str() << "\n\r";
+            parametrFile << dataStream.str() << std::endl;
+            dataStream.str("");
+            dataStream.clear();
             dataParametrSize += 2;
         }
         break;
@@ -180,7 +186,9 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
             dataStream << ((long *)buffer)[i];
-            parametrFile << dataStream.str() << "\n\r";
+            parametrFile << dataStream.str() << std::endl;
+            dataStream.str("");
+            dataStream.clear();
             dataParametrSize += 4;
         }
         break;
@@ -189,7 +197,9 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         {
             dataStream.precision(4);
             dataStream << ((float *)buffer)[i];
-            parametrFile << dataStream.str() << "\n\r";
+            parametrFile << dataStream.str() << std::endl;
+            dataStream.str("");
+            dataStream.clear();
             dataParametrSize += 4;
         }
         break;
@@ -198,7 +208,10 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         {
             dataStream.precision(4);
             dataStream << ((double *)buffer)[i];
-            parametrFile << dataStream.str() << "\n\r";
+            auto string = dataStream.str();
+            parametrFile << string << std::endl;
+            dataStream.str("");
+            dataStream.clear();
             dataParametrSize += 8;
         }
         break;
