@@ -15,6 +15,7 @@ struct USMLHeader
     uint16_t reserve;
 };
 
+#pragma pack(1)
 struct USMLPasportTable
 {
     char nameParametrs[12];
@@ -23,7 +24,7 @@ struct USMLPasportTable
     uint32_t discreteness;
     float K0;
     float K1;
-    uint16_t lengthArray;
+    uint32_t lengthArray;
     uint8_t format;
     float Tn;
     float Tk;
@@ -42,6 +43,7 @@ enum USMLFormatData
 int main(int argc, const char **argv)
 {
 
+    // Открытие файла
     std::string fileName = "ACTPA-06.П48_28-10-21.usm";
 
     std::ifstream file;
@@ -54,6 +56,7 @@ int main(int argc, const char **argv)
         return -1;
     }
 
+    // Проверка размера
     size_t fileSize = file.tellg();
     file.seekg(0);
 
@@ -64,12 +67,14 @@ int main(int argc, const char **argv)
         return -1;
     }
 
+    // Создание буфера
     char *fileBuffer = new char[fileSize];
 
     const int fileMarker = 2341245331;
 
     file.read(fileBuffer, fileSize);
     file.close();
+
     uint16_t parametrCount = readHeader(fileBuffer, fileSize);
 
     char *startTableParametrs = &fileBuffer[32];                      // Начало таблицы паспортов
@@ -79,15 +84,30 @@ int main(int argc, const char **argv)
     while (parametrCount)
     {
         std::string fileParametrName = GetParametrName(startTableParametrs);
-        std::ofstream fileParametr;
 
-        fileParametr.open(fileParametrName);
+        if (fileParametrName.empty())
+            continue;
+
+        fileParametrName.append(".txt");
+
+        std::fstream fileParametr;
+
+        fileParametr.open(fileParametrName, std::ios::out);
 
         if (fileParametr.is_open() == false)
         {
             std::cerr << "Can't open file " << fileParametrName << std::endl;
             return -1;
         }
+
+        auto Pasport = GetParametrPasport(startTableParametrs); // Извлечение таблицы
+
+        auto dataSize = GetParametrData(fileParametr, Pasport, startParametrData); // Получение информации и размер, запись файла
+
+        startTableParametrs += sizeof(USMLPasportTable);
+        startParametrData += dataSize;
+
+        fileParametr.close();
     }
 
     delete[] fileBuffer;
@@ -95,6 +115,7 @@ int main(int argc, const char **argv)
     return 0;
 }
 
+// Чтение заголовка
 uint16_t readHeader(char *buffer, size_t size)
 {
     const int fileMarker = 2341245331;
@@ -108,6 +129,7 @@ uint16_t readHeader(char *buffer, size_t size)
     return usmlheader->countParamrters;
 }
 
+// Получение имя параметра
 std::string &GetParametrName(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
@@ -115,12 +137,14 @@ std::string &GetParametrName(char *buffer)
     return outputName;
 }
 
+// Получение паспорта параметров
 USMLPasportTable GetParametrPasport(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
     return *usmlpasportable;
 }
 
+// Извлечение, конвертация и запись данных в файл
 size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties, char *buffer)
 {
     if (parametrFile.is_open() == false)
@@ -146,7 +170,7 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
 
     case dataShort:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
-        { 
+        {
             dataStream << ((short *)buffer)[i]; // Конвертация байтового массива в 16-битный
             parametrFile << dataStream.str() << "\n\r";
             dataParametrSize += 2;
