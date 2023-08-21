@@ -42,6 +42,7 @@ uint16_t readHeader(char *, size_t);
 std::string GetParametrName(char *buffer);
 USMLPasportTable GetParametrPasport(char *buffer);
 size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties, char *buffer);
+void GetPasportData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties);
 
 int main(int argc, const char **argv)
 {
@@ -86,8 +87,9 @@ int main(int argc, const char **argv)
     {
         std::stringstream fileParametrName;
 
+        //auto parametrName = GetParametrName(startTableParametrs);
+
         fileParametrName << parametrCount << ".txt";
-        // = GetParametrName(startTableParametrs); 
 
         std::fstream fileParametr;
 
@@ -99,10 +101,28 @@ int main(int argc, const char **argv)
             return -1;
         }
 
+        std::fstream pasportFile;
+
+        std::stringstream filePasportName;
+
+        filePasportName << "Паспорт" << parametrCount << ".txt";
+
+        pasportFile.open(filePasportName.str(), std::ios::out | std::ios::trunc);
+
+        if (pasportFile.is_open() == false)
+        {
+            std::cerr << "Can't open file " << filePasportName.str() << std::endl;
+            return -1;
+        }
+
         auto Pasport = GetParametrPasport(startTableParametrs); // Извлечение таблицы
 
+        GetPasportData(pasportFile, Pasport);
+
+        pasportFile.close();
+
         auto dataSize = GetParametrData(fileParametr, Pasport, startParametrData); // Получение информации и размер, запись файла
-        
+
         if (dataSize == 0)
             continue;
 
@@ -136,6 +156,21 @@ std::string GetParametrName(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
     std::string outputName = usmlpasportable->nameParametrs;
+
+    // for (size_t i = 0; i < 13; ++i)
+    // {
+    //     if (((usmlpasportable->nameParametrs[i] < 'C0') || (usmlpasportable->nameParametrs[i] > 'DF')))
+    //     {
+
+    //         outputName.push_back(usmlpasportable->nameParametrs[i]);
+    //     }
+    //     else
+    //     {
+    //         auto utf8Char = 'А';
+    //         utf8Char += (usmlpasportable->nameParametrs[i]) - 0xC0;
+    //         outputName.append((char*)&utf8Char, 2); // Конвертация
+    //     }
+    // }
     return outputName;
 }
 
@@ -143,6 +178,11 @@ std::string GetParametrName(char *buffer)
 USMLPasportTable GetParametrPasport(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
+
+    // usmlpasportable->dimension = _OSSwapInt64(usmlpasportable->dimension);
+    // usmlpasportable->discreteness = _OSSwapInt32(usmlpasportable->discreteness);
+    // usmlpasportable->lengthArray = _OSSwapInt32(usmlpasportable->lengthArray);
+
     return *usmlpasportable;
 }
 
@@ -219,4 +259,19 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
         break;
     };
     return dataParametrSize + 2;
+}
+
+void GetPasportData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties)
+{
+    parametrFile << "Имя параметра: " << parametrPropeties.nameParametrs << std::endl;
+    parametrFile << "Имя характеристики: " << parametrPropeties.nameProperties << std::endl;
+    parametrFile << "Размерность: " << parametrPropeties.dimension << std::endl;
+    parametrFile << "Дискретность: " << parametrPropeties.discreteness << std::endl;
+    parametrFile << "K0: " << parametrPropeties.K0 << std::endl;
+    parametrFile << "K1: " << parametrPropeties.K1 << std::endl;
+    parametrFile << "Длина массива: " << parametrPropeties.lengthArray << std::endl;
+    parametrFile << "Формат: " << parametrPropeties.format << std::endl;
+    parametrFile << "Тн: " << parametrPropeties.Tn << std::endl;
+    parametrFile << "Тк: " << parametrPropeties.Tk << std::endl;
+    parametrFile << "Резерв: " << parametrPropeties.reserve << std::endl;
 }
