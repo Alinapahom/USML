@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstdlib>
+#include <cmath>
 
 struct USMLHeader
 {
@@ -18,8 +19,8 @@ struct USMLPasportTable
 {
     char nameParametrs[12];
     char nameProperties[12];
-    uint64_t dimension;
-    uint32_t discreteness;
+    char dimension[8];
+    float discreteness;
     float K0;
     float K1;
     uint32_t lengthArray;
@@ -87,7 +88,7 @@ int main(int argc, const char **argv)
     {
         std::stringstream fileParametrName;
 
-        //auto parametrName = GetParametrName(startTableParametrs);
+        auto parametrName = GetParametrName(startTableParametrs);
 
         fileParametrName << parametrCount << ".txt";
 
@@ -155,22 +156,8 @@ uint16_t readHeader(char *buffer, size_t size)
 std::string GetParametrName(char *buffer)
 {
     USMLPasportTable *usmlpasportable = (USMLPasportTable *)buffer;
-    std::string outputName = usmlpasportable->nameParametrs;
-
-    // for (size_t i = 0; i < 13; ++i)
-    // {
-    //     if (((usmlpasportable->nameParametrs[i] < 'C0') || (usmlpasportable->nameParametrs[i] > 'DF')))
-    //     {
-
-    //         outputName.push_back(usmlpasportable->nameParametrs[i]);
-    //     }
-    //     else
-    //     {
-    //         auto utf8Char = 'А';
-    //         utf8Char += (usmlpasportable->nameParametrs[i]) - 0xC0;
-    //         outputName.append((char*)&utf8Char, 2); // Конвертация
-    //     }
-    // }
+    std::string outputName;
+    outputName.append(usmlpasportable->nameParametrs, 12);
     return outputName;
 }
 
@@ -197,17 +184,16 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
 
     size_t dataParametrSize = 0;
 
-    std::stringstream dataStream;
-
     switch (parametrPropeties.format)
     {
     case dataChar:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            dataStream << buffer[i];
-            parametrFile << dataStream.str() << std::endl;
-            dataStream.str("");
-            dataStream.clear();
+            auto dataX = parametrPropeties.K1 * (buffer[i] - parametrPropeties.K0);
+            auto dataY = parametrPropeties.Tn + (i * (parametrPropeties.discreteness));
+            if (dataX == 0)
+                continue;
+            parametrFile << dataX << " " << dataY << std::endl;
             ++dataParametrSize;
         }
         break;
@@ -215,43 +201,46 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
     case dataShort:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            dataStream << ((short *)buffer)[i]; // Конвертация байтового массива в 16-битный
-            parametrFile << dataStream.str() << std::endl;
-            dataStream.str("");
-            dataStream.clear();
+            auto dataX = parametrPropeties.K1 * ((((short *)buffer)[i]) - parametrPropeties.K0);
+            auto dataY = parametrPropeties.Tn + (i * (parametrPropeties.discreteness));
+            if (dataX == 0)
+                continue;
+            parametrFile << dataX << " " << dataY << std::endl;
             dataParametrSize += 2;
         }
         break;
     case dataLong:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            dataStream << ((long *)buffer)[i];
-            parametrFile << dataStream.str() << std::endl;
-            dataStream.str("");
-            dataStream.clear();
+            auto dataX = parametrPropeties.K1 * ((((long *)buffer)[i]) - parametrPropeties.K0);
+            auto dataY = parametrPropeties.Tn + (i * (parametrPropeties.discreteness));
+            if (dataX == 0)
+                continue;
+            parametrFile << dataX << " " << dataY << std::endl;
             dataParametrSize += 4;
         }
         break;
     case dataFloat:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            dataStream.precision(4);
-            dataStream << ((float *)buffer)[i];
-            parametrFile << dataStream.str() << std::endl;
-            dataStream.str("");
-            dataStream.clear();
+            parametrFile.precision(8);
+            auto dataX = parametrPropeties.K1 * ((((float *)buffer)[i]) - parametrPropeties.K0);
+            auto dataY = parametrPropeties.Tn + (i * (parametrPropeties.discreteness));
+            if (dataX == 0 || std::isnan(dataX))
+                continue;
+            parametrFile << dataX << " " << dataY << std::endl;
             dataParametrSize += 4;
         }
         break;
     case dataDouble:
         for (size_t i = 0; i < parametrPropeties.lengthArray; ++i)
         {
-            dataStream.precision(4);
-            dataStream << ((double *)buffer)[i];
-            auto string = dataStream.str();
-            parametrFile << string << std::endl;
-            dataStream.str("");
-            dataStream.clear();
+            parametrFile.precision(8);
+            auto dataX = parametrPropeties.K1 * ((((double *)buffer)[i]) - parametrPropeties.K0);
+            auto dataY = parametrPropeties.Tn + (i * (parametrPropeties.discreteness));
+            if (dataX == 0 || std::isnan(dataX))
+                continue;
+            parametrFile << dataX << " " << dataY << std::endl;
             dataParametrSize += 8;
         }
         break;
@@ -263,15 +252,15 @@ size_t GetParametrData(std::fstream &parametrFile, USMLPasportTable &parametrPro
 
 void GetPasportData(std::fstream &parametrFile, USMLPasportTable &parametrPropeties)
 {
-    parametrFile << "Имя параметра: " << parametrPropeties.nameParametrs << std::endl;
-    parametrFile << "Имя характеристики: " << parametrPropeties.nameProperties << std::endl;
-    parametrFile << "Размерность: " << parametrPropeties.dimension << std::endl;
+    parametrFile << "Имя параметра: " << std:: string (parametrPropeties.nameParametrs, 12) << std::endl;
+    parametrFile << "Имя характеристики: " << std:: string (parametrPropeties.nameProperties, 12) << std::endl;
+    parametrFile << "Размерность: " << std:: string (parametrPropeties.dimension, 8) << std::endl;
     parametrFile << "Дискретность: " << parametrPropeties.discreteness << std::endl;
     parametrFile << "K0: " << parametrPropeties.K0 << std::endl;
     parametrFile << "K1: " << parametrPropeties.K1 << std::endl;
     parametrFile << "Длина массива: " << parametrPropeties.lengthArray << std::endl;
-    parametrFile << "Формат: " << parametrPropeties.format << std::endl;
+    parametrFile << "Формат: " << int (parametrPropeties.format) << std::endl;
     parametrFile << "Тн: " << parametrPropeties.Tn << std::endl;
     parametrFile << "Тк: " << parametrPropeties.Tk << std::endl;
-    parametrFile << "Резерв: " << parametrPropeties.reserve << std::endl;
+    parametrFile << "Резерв: " << int (parametrPropeties.reserve) << std::endl;
 }
